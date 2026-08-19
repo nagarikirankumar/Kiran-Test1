@@ -10,5 +10,9 @@ public interface IUserRepository
 
     Task<User?> GetByUserNameAsync(string userName, CancellationToken cancellationToken = default);
 
-    Task<User> AddAsync(User user, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Atomically adds the user unless another user already has the same email or user name.
+    /// Returns null when such a user exists.
+    /// </summary>
+    Task<User?> AddIfUniqueAsync(User user, CancellationToken cancellationToken = default);
 }

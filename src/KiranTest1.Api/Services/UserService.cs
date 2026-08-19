@@ -59,7 +59,9 @@ public class UserService : IUserService
             CreatedAt = _timeProvider.GetUtcNow()
         };
 
-        var created = await _repository.AddAsync(user, cancellationToken);
+        var created = await _repository.AddIfUniqueAsync(user, cancellationToken)
+            ?? throw new UserAlreadyExistsException(
+                $"A user with email '{email}' or user name '{userName}' already exists.");
 
         return ToResponse(created);
     }

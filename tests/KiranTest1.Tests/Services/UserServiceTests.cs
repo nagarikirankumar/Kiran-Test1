@@ -31,7 +31,7 @@ public class UserServiceTests
             .ReturnsAsync((User?)null);
         _passwordHasher.Setup(h => h.Hash("sup3rSecret!")).Returns("hashed");
         User? added = null;
-        _repository.Setup(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+        _repository.Setup(r => r.AddIfUniqueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
             .Callback<User, CancellationToken>((u, _) => added = u)
             .ReturnsAsync((User u, CancellationToken _) => u);
 
@@ -53,7 +53,7 @@ public class UserServiceTests
         _repository.Setup(r => r.GetByUserNameAsync("kiran", It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
         _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
-        _repository.Setup(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+        _repository.Setup(r => r.AddIfUniqueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User u, CancellationToken _) => u);
 
         var response = await CreateSut().CreateUserAsync(new CreateUserRequest
@@ -86,7 +86,7 @@ public class UserServiceTests
         var request = new CreateUserRequest { UserName = userName, Email = email, Password = password };
 
         await Assert.ThrowsAsync<ArgumentException>(() => CreateSut().CreateUserAsync(request));
-        _repository.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.AddIfUniqueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class UserServiceTests
             .ReturnsAsync(new User { Id = Guid.NewGuid(), Email = "kiran@example.com" });
 
         await Assert.ThrowsAsync<UserAlreadyExistsException>(() => CreateSut().CreateUserAsync(ValidRequest()));
-        _repository.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.AddIfUniqueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -108,7 +108,21 @@ public class UserServiceTests
             .ReturnsAsync(new User { Id = Guid.NewGuid(), UserName = "kiran" });
 
         await Assert.ThrowsAsync<UserAlreadyExistsException>(() => CreateSut().CreateUserAsync(ValidRequest()));
-        _repository.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.AddIfUniqueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_RepositoryRejectsDuplicate_ThrowsUserAlreadyExists()
+    {
+        _repository.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _repository.Setup(r => r.GetByUserNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
+        _repository.Setup(r => r.AddIfUniqueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<UserAlreadyExistsException>(() => CreateSut().CreateUserAsync(ValidRequest()));
     }
 
     [Fact]

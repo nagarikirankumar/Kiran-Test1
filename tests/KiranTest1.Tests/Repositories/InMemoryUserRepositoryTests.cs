@@ -15,24 +15,51 @@ public class InMemoryUserRepositoryTests
     };
 
     [Fact]
-    public async Task AddAsync_AssignsIdWhenEmpty()
+    public async Task AddIfUniqueAsync_AssignsIdWhenEmpty()
     {
-        var added = await _sut.AddAsync(NewUser());
+        var added = await _sut.AddIfUniqueAsync(NewUser());
 
-        Assert.NotEqual(Guid.Empty, added.Id);
+        Assert.NotNull(added);
+        Assert.NotEqual(Guid.Empty, added!.Id);
         Assert.Equal(added.Id, (await _sut.GetByIdAsync(added.Id))!.Id);
     }
 
     [Fact]
-    public async Task AddAsync_KeepsProvidedId()
+    public async Task AddIfUniqueAsync_KeepsProvidedId()
     {
         var id = Guid.NewGuid();
         var user = NewUser();
         user.Id = id;
 
-        var added = await _sut.AddAsync(user);
+        var added = await _sut.AddIfUniqueAsync(user);
 
-        Assert.Equal(id, added.Id);
+        Assert.Equal(id, added!.Id);
+    }
+
+    [Theory]
+    [InlineData("other", "kiran@example.com")]
+    [InlineData("kiran", "other@example.com")]
+    [InlineData("KIRAN", "OTHER@EXAMPLE.COM")]
+    public async Task AddIfUniqueAsync_DuplicateEmailOrUserName_ReturnsNull(string userName, string email)
+    {
+        await _sut.AddIfUniqueAsync(NewUser());
+
+        var duplicate = NewUser();
+        duplicate.UserName = userName;
+        duplicate.Email = email;
+
+        Assert.Null(await _sut.AddIfUniqueAsync(duplicate));
+    }
+
+    [Fact]
+    public async Task AddIfUniqueAsync_ConcurrentDuplicates_AddsExactlyOne()
+    {
+        var attempts = Enumerable.Range(0, 32)
+            .Select(_ => Task.Run(() => _sut.AddIfUniqueAsync(NewUser())));
+
+        var results = await Task.WhenAll(attempts);
+
+        Assert.Single(results.Where(u => u is not null));
     }
 
     [Fact]
@@ -44,7 +71,7 @@ public class InMemoryUserRepositoryTests
     [Fact]
     public async Task GetByEmailAsync_IsCaseInsensitive()
     {
-        await _sut.AddAsync(NewUser());
+        await _sut.AddIfUniqueAsync(NewUser());
 
         Assert.NotNull(await _sut.GetByEmailAsync("KIRAN@EXAMPLE.COM"));
         Assert.Null(await _sut.GetByEmailAsync("other@example.com"));
@@ -53,7 +80,7 @@ public class InMemoryUserRepositoryTests
     [Fact]
     public async Task GetByUserNameAsync_IsCaseInsensitive()
     {
-        await _sut.AddAsync(NewUser());
+        await _sut.AddIfUniqueAsync(NewUser());
 
         Assert.NotNull(await _sut.GetByUserNameAsync("KIRAN"));
         Assert.Null(await _sut.GetByUserNameAsync("someone"));
